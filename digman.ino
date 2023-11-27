@@ -40,9 +40,9 @@ const unsigned long downMoveDelay = 150; // Delay between downward movements (in
 
 void setup() {
   // Initialize block Y positions
-        for (int i = 0; i < numLevels; i++) {
-            blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
-        }
+  for (int i = 0; i < numLevels; i++) {
+    blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
+  }
 
   arduboy.begin();
   arduboy.setFrameRate(60);
@@ -92,33 +92,21 @@ void shiftBlocksUp() {
 void moveBlocksUp() {
     unsigned long currentTime = millis();
 
-    if (currentTime - lastDownMoveTime >= downMoveDelay) {
-        // if (currentLvl < numLevels) {
-            currentLvl++;
-        // } else {
-        //     currentLvl = 0;
+    if (currentTime - lastDownMoveTime >= downMoveDelay) { 
+      currentLvl++;
 
-        //     // Shift blocks up
-        //     shiftBlocksUp();
+      for (int i = 0; i < numLevels; i++) {
+        int newYPos =  tileSize * (startingLvl + i - currentLvl) + blockY;
 
-        //     // Move the block at level 6 to the bottom
-        //     if (currentLvl - 1 == 6) {
-        //       blockYLevels[numLevels - 1] = screenHeight - tileSize * (startingLvl - numLevels);
-        //     }
-        // }
-
-        for (int i = 0; i < numLevels; i++) {
-          int newYPos =  tileSize * (startingLvl + i - currentLvl) + blockY;
-
-          if(newYPos < - tileSize) {
-            blockYLevels[i] = newYPos + screenHeight + tileSize - blockY;
-          }
-          else {
-            blockYLevels[i] = newYPos;
-          }
+        if(newYPos < - tileSize) {
+          blockYLevels[i] = newYPos + screenHeight + tileSize - blockY;
         }
+        else {
+          blockYLevels[i] = newYPos;
+        }
+      }
 
-        lastDownMoveTime = currentTime;
+      lastDownMoveTime = currentTime;
     }
 }
 
@@ -138,8 +126,9 @@ void drawGame() {
 }
 
 bool isAtXBoundary(int x) {
-    if (x <= 0 || x >= screenWidth - tileSize) {
-        return false;
-    }
-    return true;
+  if (x <= 0 || x >= screenWidth - tileSize) {
+    return false;
+  }
+
+  return true;
 }
