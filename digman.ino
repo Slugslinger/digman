@@ -10,33 +10,39 @@ ArdBitmap<WIDTH, HEIGHT> ardbitmap;
 const int tileSize = 12;
 const int screenWidth = 128;
 const int screenHeight = 64;
+// Number of blocks
 const int numBlocks = 10;
 // Number of levels
 const int numLevels = 6;
-const int startingLvl = 3;
+const int startingLvl = 2;
+
+// 0 means it's a block
+// 1, 10, 100 its the gems type and points we earn
+// -1 means the block was destroyed 
+int blocks[numLevels][numBlocks];
+int blockYLevels[numLevels];
 
 int currentLvl = 0;
 
 int totalBlockWidth = tileSize * numBlocks;
 int blockX = (screenWidth - totalBlockWidth) / 2;
+int totalBlockHeight = tileSize * (numLevels - 1);
+int blockY = screenHeight - totalBlockHeight;
 
-int digmanX = 50;
-int digmanY = screenHeight - tileSize * 4;
+int digmanX = blockX;
+// Digman needs to be one level on top so we add one more tileSize
+int digmanY = tileSize * startingLvl - tileSize + blockY;
 
 unsigned long lastMoveTime = 0; // Timestamp to track last movement
 const unsigned long moveDelay = 150; // Delay between movements (in milliseconds)
 unsigned long lastDownMoveTime = 0; // Timestamp to track last downward movement
 const unsigned long downMoveDelay = 150; // Delay between downward movements (in milliseconds)
 
-int blockYLevels[numBlocks][numLevels];
-
 void setup() {
-  // Initialize block positions
-    for (int i = 0; i < numBlocks; i++) {
-        for (int j = 0; j < numLevels; j++) {
-            blockYLevels[i][j] = screenHeight - tileSize * (startingLvl + startingLvl - j);
+  // Initialize block Y positions
+        for (int i = 0; i < numLevels; i++) {
+            blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
         }
-    }
 
   arduboy.begin();
   arduboy.setFrameRate(60);
@@ -79,9 +85,7 @@ void moveDigman(int deltaX) {
 void shiftBlocksUp() {
     // Shift the blocks up by one level
     for (int i = 0; i < numBlocks; i++) {
-        for (int j = 0; j < numLevels - 1; j++) {
-            blockYLevels[i][j] = blockYLevels[i][j + 1];
-        }
+      blockYLevels[i] = blockYLevels[i + 1];
     }
 }
 
@@ -89,21 +93,31 @@ void moveBlocksUp() {
     unsigned long currentTime = millis();
 
     if (currentTime - lastDownMoveTime >= downMoveDelay) {
-        if (currentLvl < numLevels) {
+        // if (currentLvl < numLevels) {
             currentLvl++;
-        } else {
-            currentLvl = 0;
+        // } else {
+        //     currentLvl = 0;
 
-            // Shift blocks up
-            shiftBlocksUp();
+        //     // Shift blocks up
+        //     shiftBlocksUp();
 
-            // Move the block at level 6 to the bottom
-            for (int i = 0; i < numBlocks; i++) {
-                if (currentLvl - 1 == 6) {
-                    blockYLevels[i][numLevels - 1] = screenHeight - tileSize * (startingLvl - numLevels);
-                }
-            }
+        //     // Move the block at level 6 to the bottom
+        //     if (currentLvl - 1 == 6) {
+        //       blockYLevels[numLevels - 1] = screenHeight - tileSize * (startingLvl - numLevels);
+        //     }
+        // }
+
+        for (int i = 0; i < numLevels; i++) {
+          int newYPos =  tileSize * (startingLvl + i - currentLvl) + blockY;
+
+          if(newYPos < - tileSize) {
+            blockYLevels[i] = newYPos + screenHeight + tileSize - blockY;
+          }
+          else {
+            blockYLevels[i] = newYPos;
+          }
         }
+
         lastDownMoveTime = currentTime;
     }
 }
@@ -113,9 +127,9 @@ void drawGame() {
 
     // Draw blocks based on their positions
     for (int i = 0; i < numBlocks; i++) {
-        for (int j = 0; j < numLevels; j++) {
-            arduboy.drawBitmap(blockX + i * tileSize, blockYLevels[i][j], epd_bitmap_block2, 12, 12, WHITE);
-        }
+      for (int j = 0; j < numLevels; j++) {
+        arduboy.drawBitmap(blockX + i * tileSize, blockYLevels[j], epd_bitmap_block2, 12, 12, WHITE);
+      }
     }
 
     arduboy.drawBitmap(digmanX, digmanY, epd_bitmap_digman, 12, 12, WHITE);
