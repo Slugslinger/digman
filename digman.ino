@@ -42,6 +42,11 @@ void setup() {
   // Initialize block Y positions
   for (int i = 0; i < numLevels; i++) {
     blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
+
+    // Set random values for blocks at each level
+    for (int j = 0; j < numBlocks; j++) {
+      blocks[i][j] = getRandomValue();
+    }
   }
 
   arduboy.begin();
@@ -82,28 +87,35 @@ void moveDigman(int deltaX) {
   }
 }
 
-void shiftBlocksUp() {
-    // Shift the blocks up by one level
-    for (int i = 0; i < numBlocks; i++) {
-      blockYLevels[i] = blockYLevels[i + 1];
-    }
+int getRandomValue() {
+  int randomValue = random(1, 101); // Generate a random number between 1 and 100
+
+  if (randomValue <= 75) {
+    return 0; // Around 50% chance for a gem
+  } else if (randomValue <= 80) {
+    return 1; // Around 50% chance for a gem
+  } else if (randomValue <= 95) {
+    return 10; // Around 35% chance for a 10-point gem
+  } else {
+    return 100; // Around 15% chance for a 100-point gem (rarer)
+  }
 }
 
 void moveBlocksUp() {
     unsigned long currentTime = millis();
 
-    if (currentTime - lastDownMoveTime >= downMoveDelay) { 
-      currentLvl++;
-
+    if (currentTime - lastDownMoveTime >= downMoveDelay) {
       for (int i = 0; i < numLevels; i++) {
-        int newYPos =  tileSize * (startingLvl + i - currentLvl) + blockY;
+        blockYLevels[i] -= tileSize; // Move blocks up by one tileSize
 
-        if(newYPos < - tileSize) {
-          blockYLevels[i] = newYPos + screenHeight + tileSize - blockY;
-        }
-        else {
-          blockYLevels[i] = newYPos;
-        }
+        // If a block goes beyond the top of the screen, move it back to the bottom
+        if (blockYLevels[i] < 0) {
+          blockYLevels[i] = screenHeight - tileSize;
+            // Set random values for blocks at each level
+            for (int j = 0; j < numBlocks; j++) {
+              blocks[i][j] = getRandomValue();
+            }
+          }
       }
 
       lastDownMoveTime = currentTime;
@@ -114,9 +126,22 @@ void drawGame() {
     arduboy.clear();
 
     // Draw blocks based on their positions
-    for (int i = 0; i < numBlocks; i++) {
-      for (int j = 0; j < numLevels; j++) {
-        arduboy.drawBitmap(blockX + i * tileSize, blockYLevels[j], epd_bitmap_block2, 12, 12, WHITE);
+    for (int i = 0; i < numLevels; i++) {
+      for (int j = 0; j < numBlocks; j++) {
+
+        if(blocks[i][j] == 1) {
+          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_gem2, 12, 12, WHITE);
+        }
+        else if(blocks[i][j] == 10) {
+          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_gem1, 12, 12, WHITE);
+        }
+        else if(blocks[i][j] == 100) {
+          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_gem4, 12, 12, WHITE);
+        }
+         else {
+          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_block2, 12, 12, WHITE);
+        }
+
       }
     }
 
