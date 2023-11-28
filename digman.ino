@@ -70,7 +70,14 @@ void loop() {
     moveBlocksUp();
   }
 
+  // Check for collisions with blocks or gems
+  checkCollisions();
+
   drawGame();
+}
+
+void checkCollisions() {
+      blocks[digmanY][digmanX] = -1; // Set the block to -1 (destroyed)
 }
 
 void moveDigman(int deltaX) {
@@ -128,18 +135,27 @@ void drawGame() {
     // Draw blocks based on their positions
     for (int i = 0; i < numLevels; i++) {
       for (int j = 0; j < numBlocks; j++) {
+        int newY = blockYLevels[i];
+        int newX = blockX + j * tileSize;
+        
+        if(newX == digmanX && newY == digmanY){
+          blocks[i][j] = -1;
+        }
 
-        if(blocks[i][j] == 1) {
-          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_gem2, 12, 12, WHITE);
+        if (blocks[i][j] == -1) {
+          arduboy.drawRect(newX, newY, tileSize, tileSize, BLACK); // Draw black rectangle for an empty block
+        }
+        else if(blocks[i][j] == 1) {
+          arduboy.drawBitmap(newX, newY, epd_bitmap_gem2, 12, 12, WHITE);
         }
         else if(blocks[i][j] == 10) {
-          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_gem1, 12, 12, WHITE);
+          arduboy.drawBitmap(newX, newY, epd_bitmap_gem1, 12, 12, WHITE);
         }
         else if(blocks[i][j] == 100) {
-          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_gem4, 12, 12, WHITE);
+          arduboy.drawBitmap(newX, newY, epd_bitmap_gem4, 12, 12, WHITE);
         }
-         else {
-          arduboy.drawBitmap(blockX + j * tileSize, blockYLevels[i], epd_bitmap_block2, 12, 12, WHITE);
+        else {
+          arduboy.drawBitmap(newX, newY, epd_bitmap_block2, 12, 12, WHITE);
         }
 
       }
