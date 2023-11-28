@@ -23,6 +23,7 @@ int blocks[numLevels][numBlocks];
 int blockYLevels[numLevels];
 
 int currentLvl = 0;
+int score = 0;
 
 int totalBlockWidth = tileSize * numBlocks;
 int blockX = (screenWidth - totalBlockWidth) / 2;
@@ -70,14 +71,31 @@ void loop() {
     moveBlocksUp();
   }
 
-  // Check for collisions with blocks or gems
-  checkCollisions();
-
   drawGame();
 }
 
-void checkCollisions() {
-      blocks[digmanY][digmanX] = -1; // Set the block to -1 (destroyed)
+void displayScore() {
+  int scoreDigits = 1; // Assume the score has at least one digit
+
+  if (score >= 10) {
+    scoreDigits = 2;
+  }
+  if (score >= 100) {
+    scoreDigits = 3;
+  }
+  if (score >= 1000) {
+    scoreDigits = 4;
+  }
+  if (score >= 1000) {
+    scoreDigits = 5;
+  }
+  // Add more conditions for larger scores if needed
+
+  int scoreX = screenWidth - 2 - (scoreDigits * 6); // Adjust the multiplication factor based on font size
+
+  arduboy.fillRect(scoreX - 6, 0, scoreDigits * 6, 8, BLACK); // Black background for the score
+  arduboy.setCursor(scoreX, 2); // Adjust position for the score text
+  arduboy.print(score);
 }
 
 void moveDigman(int deltaX) {
@@ -98,13 +116,13 @@ int getRandomValue() {
   int randomValue = random(1, 101); // Generate a random number between 1 and 100
 
   if (randomValue <= 75) {
-    return 0; // Around 50% chance for a gem
-  } else if (randomValue <= 80) {
-    return 1; // Around 50% chance for a gem
-  } else if (randomValue <= 95) {
-    return 10; // Around 35% chance for a 10-point gem
+    return 0; // Around 75% chance for a gem
+  } else if (randomValue <= 92) {
+    return 1; // Around 5% chance for a gem
+  } else if (randomValue <= 99) {
+    return 10; // Around 15% chance for a 10-point gem
   } else {
-    return 100; // Around 15% chance for a 100-point gem (rarer)
+    return 100; // Around 5% chance for a 100-point gem (rarer)
   }
 }
 
@@ -139,6 +157,12 @@ void drawGame() {
         int newX = blockX + j * tileSize;
         
         if(newX == digmanX && newY == digmanY){
+          // Add score
+          if(blocks[i][j] > 0) {
+            score += blocks[i][j];
+          }
+
+          // Destroy block
           blocks[i][j] = -1;
         }
 
@@ -162,6 +186,8 @@ void drawGame() {
     }
 
     arduboy.drawBitmap(digmanX, digmanY, epd_bitmap_digman, 12, 12, WHITE);
+
+    displayScore();
 
     arduboy.display();
 }
