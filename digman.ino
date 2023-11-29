@@ -1,4 +1,5 @@
 #include <Arduboy2.h>
+#include <EEPROM.h>
 #include "bitmaps.h"
 
 Arduboy2 arduboy;
@@ -23,7 +24,9 @@ int blocks[numLevels][numBlocks];
 int blockYLevels[numLevels];
 
 int currentLvl = 0;
+int highScore = 0;
 int score = 0;
+bool isNewHighScore = false;
 bool gameOver = false;
 
 int totalBlockWidth = tileSize * numBlocks;
@@ -68,6 +71,8 @@ void moveBlocksUp();
 void drawGame();
 void displayTimer();
 void displayFinalScore();
+void updateHighScore(int newScore);
+void displayHighScore(int yPos = 10);
 void resetGame();
 void displayStartMenu();
 bool isAtXBoundary(int x);
@@ -86,7 +91,10 @@ void setup() {
   arduboy.begin();
   arduboy.setFrameRate(60);
 
-   startTime = millis(); // Record the start time when the game begins
+  // Load the high score from EEPROM
+  EEPROM.get(0, highScore);
+
+  startTime = millis(); // Record the start time when the game begins
 }
 
 void loop() {
@@ -131,6 +139,7 @@ void loop() {
     
       case GAME_OVER:
         // Game over state
+        updateHighScore(score);
         displayFinalScore();
         // Optionally, you can add a reset or exit condition here
 
@@ -320,8 +329,10 @@ void displayStartMenu() {
   arduboy.drawBitmap(0, 0, epd_bitmap_title, 128, 64, WHITE);
 
   // Display "Press A to start" message at the bottom
-  arduboy.setCursor(16, 40);
+  arduboy.setCursor(16, 35);
   arduboy.print("Press A to start");
+
+  displayHighScore(50);
 
   arduboy.display();
 }
@@ -339,14 +350,24 @@ void displayTimer() {
 
 void displayFinalScore() {
   arduboy.clear();
-  arduboy.setCursor(10, 10); // Adjust position for the final score text
+  arduboy.setCursor(35, 0); // Adjust position for the final score text
   arduboy.print("Game Over!");
   arduboy.setCursor(10, 20); // Adjust position for the final score text
-  arduboy.print("Final Score:");
+  // arduboy.print("Final Score:");
+  if(isNewHighScore){
+      arduboy.print("New High Score: ");
+      
+      isNewHighScore = false;
+    }
+    else {
+      arduboy.print("Final Score:");
+    }
   arduboy.setCursor(50, 30); // Adjust position for the final score value
   arduboy.print(score);
   arduboy.setCursor(10, 50); // Adjust position for the instructions text
   arduboy.print("Press A to restart");
+
+  // displayHighScore();
   arduboy.display();
 }
 
@@ -381,4 +402,19 @@ bool isAtXBoundary(int x) {
   }
 
   return true;
+}
+
+void updateHighScore(int newScore) {
+    if (newScore > highScore) {
+        highScore = newScore;
+        isNewHighScore = true;
+        // Store the new high score to EEPROM
+        EEPROM.put(0, highScore);
+    }
+}
+
+void displayHighScore(int yPos = 10) {
+      arduboy.setCursor(15, yPos); // Adjust position for the high score text
+      arduboy.print("High Score: ");
+    arduboy.print(highScore);
 }
