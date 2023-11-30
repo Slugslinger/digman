@@ -14,7 +14,7 @@ const int screenHeight = 64;
 // Number of blocks
 const int numBlocks = 10;
 // Number of levels
-const int numLevels = 6;
+const int numLevels = 5;
 const int startingLvl = 2;
 
 // 0 means it's a block
@@ -80,26 +80,26 @@ void drawBlock(int x, int y, int blockType);
 void handleDigmanCollision(int row, int col);
 
 void setup() {
-  // Initialize block Y positions
-  for (int i = 0; i < numLevels; i++) {
-    blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
+    arduboy.begin();
+    arduboy.setFrameRate(60);
 
-    // Set random values for blocks at each level
-    for (int j = 0; j < numBlocks; j++) {
-      blocks[i][j] = getRandomValue();
+    // Load the high score from EEPROM
+    EEPROM.get(0, highScore);
+
+    //Debug
+    Serial.begin(9600); // Initialize serial communication at 9600 baud rate
+
+    // Set the initial block map
+    for (int i = 0; i < numLevels; i++) {
+        blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
+
+        // Set random values for blocks in the rest of the columns at each level
+        for (int j = 1; j < numBlocks; j++) {
+            blocks[i][j] = getRandomValue();
+        }
     }
-  }
 
-  arduboy.begin();
-  arduboy.setFrameRate(60);
-
-  // Load the high score from EEPROM
-  EEPROM.get(0, highScore);
-
-  //Debug
-  Serial.begin(9600); // Initialize serial communication at 9600 baud rate
-
-  startTime = millis(); // Record the start time when the game begins
+    startTime = millis(); // Record the start time when the game begins
 }
 
 void loop() {
@@ -155,6 +155,31 @@ void loop() {
     }
 }
 
+void printMapState() {
+    Serial.println("Current Map State:");
+    for (int i = 0; i < numLevels; i++) {
+        Serial.print("blockYLevels[");
+        Serial.print(i);
+        Serial.print("]: ");
+        Serial.println(blockYLevels[i]);
+        
+        for (int j = 0; j < numBlocks; j++) {
+            int newY = blockYLevels[i];
+            int newX = blockX + j * tileSize;
+            
+            Serial.print("X: ");
+            Serial.print(newX);
+            Serial.print(", Y: ");
+            Serial.print(newY);
+            Serial.print(", Block: ");
+            Serial.print(blocks[i][j]);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+    Serial.println();
+}
+
 void drawGame() {
     arduboy.clear();
 
@@ -179,6 +204,9 @@ void drawGame() {
     displayTimer();
 
     arduboy.display();
+
+        // Print the current map state to Serial
+    // printMapState();
 }
 
 void drawBlock(int x, int y, int blockType) {
