@@ -28,6 +28,7 @@ int highScore = 0;
 int score = 0;
 bool isNewHighScore = false;
 bool gameOver = false;
+bool isFalling = false;
 
 int totalBlockWidth = tileSize * numBlocks;
 int blockX = (screenWidth - totalBlockWidth) / 2;
@@ -121,6 +122,22 @@ void loop() {
      case GAME_PLAY:
       // Game logic
       if (!gameOver) {
+
+        int row = (digmanY - blockY + tileSize) / tileSize;
+        int col = (digmanX - blockX) / tileSize;
+
+        Serial.println("X: " + String(row));
+        Serial.println("Y: " + String(col) );
+        // Access the block below the 'digman' in the 'blocks' array
+        int blockBelowDigman = blocks[row + 1][col];
+
+        Serial.println("Block below digman: " + String(blockBelowDigman));
+        
+        if(blocks[row + 1][col] != 0) {
+          isFalling = true;
+          moveBlocksUp();
+        }
+
         if (arduboy.pressed(LEFT_BUTTON)) {
           moveDigman(-tileSize);
         } else if (arduboy.pressed(RIGHT_BUTTON)) {
@@ -153,31 +170,6 @@ void loop() {
         }
       break;
     }
-}
-
-void printMapState() {
-    Serial.println("Current Map State:");
-    for (int i = 0; i < numLevels; i++) {
-        Serial.print("blockYLevels[");
-        Serial.print(i);
-        Serial.print("]: ");
-        Serial.println(blockYLevels[i]);
-        
-        for (int j = 0; j < numBlocks; j++) {
-            int newY = blockYLevels[i];
-            int newX = blockX + j * tileSize;
-            
-            Serial.print("X: ");
-            Serial.print(newX);
-            Serial.print(", Y: ");
-            Serial.print(newY);
-            Serial.print(", Block: ");
-            Serial.print(blocks[i][j]);
-            Serial.print(" ");
-        }
-        Serial.println();
-    }
-    Serial.println();
 }
 
 void drawGame() {
@@ -270,7 +262,6 @@ void handleDigmanCollision(int row, int col) {
     }
 
     blocks[row][col] = -1;
-    // Additional actions or updates related to the collision with 'digman'
 }
 
 void displayScore() {
@@ -310,7 +301,7 @@ void moveDigman(int deltaX) {
       canMove = currentTime - lastMoveTime >= moveDelay;
     }
 
-  if (canMove) {
+  if (canMove || isFalling) {
     int newX = digmanX + deltaX;
 
     if (isAtXBoundary(newX)) {
@@ -318,34 +309,9 @@ void moveDigman(int deltaX) {
     }
 
     lastMoveTime = currentTime;
+
+    isFalling = false;
   }
-}
-
-int getRandomValue() {
-    int randomValue = random(1, 101); // Generate a random number between 1 and 100
-
-    // Prioritize generating specific block types
-    if (randomValue <= 1) {
-        return -2; // spider
-    } else if (randomValue <= 2) {
-        int newRandomValue = random(1, 50);
-
-        if (newRandomValue <= 25) {
-            return 5; // extra time
-        } else {
-            return 6; // speed boost
-        }
-    } else if (randomValue <= 75) {
-        return 0; // Regular block
-    } else if (randomValue <= 90) {
-        return 1; // Coin (low value)
-    } else if (randomValue <= 98) {
-        return 10; // Coin (medium value)
-    } else if (randomValue <= 99) {
-        return 100; // Coin (high value)
-    } else {
-        return -1; // default empty block
-    }
 }
 
 void moveBlocksUp() {
@@ -360,7 +326,7 @@ void moveBlocksUp() {
       canMove = currentTime - lastDownMoveTime >= downMoveDelay;
     }
 
-    if (canMove) {
+    if (canMove || isFalling) {
       for (int i = 0; i < numLevels; i++) {
         blockYLevels[i] -= tileSize; // Move blocks up by one tileSize
 
@@ -374,8 +340,10 @@ void moveBlocksUp() {
           }
       }
 
+      isFalling = false;
       lastDownMoveTime = currentTime;
     }
+
 }
 
 void displayStartMenu() {
@@ -446,6 +414,33 @@ void resetGame() {
   gameState = GAME_PLAY;
 }
 
+int getRandomValue() {
+    int randomValue = random(1, 101); // Generate a random number between 1 and 100
+
+    // Prioritize generating specific block types
+    if (randomValue <= 1) {
+        return -2; // spider
+    } else if (randomValue <= 2) {
+        int newRandomValue = random(1, 50);
+
+        if (newRandomValue <= 25) {
+            return 5; // extra time
+        } else {
+            return 6; // speed boost
+        }
+    } else if (randomValue <= 75) {
+        return 0; // Regular block
+    } else if (randomValue <= 90) {
+        return 1; // Coin (low value)
+    } else if (randomValue <= 98) {
+        return 10; // Coin (medium value)
+    } else if (randomValue <= 99) {
+        return 100; // Coin (high value)
+    } else {
+        return -1; // default empty block
+    }
+}
+
 bool isSpeedBoost() {
     long temp = millis();
 
@@ -473,4 +468,29 @@ void displayHighScore(int yPos = 10) {
       arduboy.setCursor(15, yPos); // Adjust position for the high score text
       arduboy.print("High Score: ");
     arduboy.print(highScore);
+}
+
+void printMapState() {
+    Serial.println("Current Map State:");
+    for (int i = 0; i < numLevels; i++) {
+        Serial.print("blockYLevels[");
+        Serial.print(i);
+        Serial.print("]: ");
+        Serial.println(blockYLevels[i]);
+        
+        for (int j = 0; j < numBlocks; j++) {
+            int newY = blockYLevels[i];
+            int newX = blockX + j * tileSize;
+            
+            Serial.print("X: ");
+            Serial.print(newX);
+            Serial.print(", Y: ");
+            Serial.print(newY);
+            Serial.print(", Block: ");
+            Serial.print(blocks[i][j]);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+    Serial.println();
 }
