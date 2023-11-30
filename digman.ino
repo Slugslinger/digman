@@ -76,6 +76,8 @@ void displayHighScore(int yPos = 10);
 void resetGame();
 void displayStartMenu();
 bool isAtXBoundary(int x);
+void drawBlock(int x, int y, int blockType);
+void handleDigmanCollision(int row, int col);
 
 void setup() {
   // Initialize block Y positions
@@ -93,6 +95,9 @@ void setup() {
 
   // Load the high score from EEPROM
   EEPROM.get(0, highScore);
+
+  //Debug
+  Serial.begin(9600); // Initialize serial communication at 9600 baud rate
 
   startTime = millis(); // Record the start time when the game begins
 }
@@ -153,57 +158,16 @@ void loop() {
 void drawGame() {
     arduboy.clear();
 
-    // Draw blocks based on their positions
     for (int i = 0; i < numLevels; i++) {
-      for (int j = 0; j < numBlocks; j++) {
-        int newY = blockYLevels[i];
-        int newX = blockX + j * tileSize;
-        
-        if(newX == digmanX && newY == digmanY){
-          // Add score
-          if(blocks[i][j] == 5) {
-            gameDuration += 5000; //more 5 seconds
-          } else if(blocks[i][j] == 6) {
-            startBoostTime = millis();
-          } else if(blocks[i][j] == -2) {
-            gameState = GAME_OVER;
-          } else if(blocks[i][j] > 0) {
-            score += blocks[i][j];
-          }
+        for (int j = 0; j < numBlocks; j++) {
+            int newY = blockYLevels[i];
+            int newX = blockX + j * tileSize;
 
-          // Destroy block
-          blocks[i][j] = -1;
+            if (newX == digmanX && newY == digmanY) {
+                handleDigmanCollision(i, j); // Handle collision with digman
+            }
+                drawBlock(newX, newY, blocks[i][j]); // Draw the block if it's within the screen bounds
         }
-
-        if (blocks[i][j] == -1) {
-          arduboy.drawRect(newX, newY, tileSize, tileSize, BLACK); // Draw black rectangle for an empty block
-        }
-        else if(blocks[i][j] == -2) {
-          arduboy.drawBitmap(newX, newY, epd_bitmap_spider, 12, 12, WHITE);
-        }
-        else if(blocks[i][j] == 5) {
-          arduboy.drawBitmap(newX, newY, epd_bitmap_time, 12, 12, WHITE);
-        }
-        else if(blocks[i][j] == 6) {
-          arduboy.drawBitmap(newX, newY, epd_bitmap_speed1, 12, 12, WHITE);
-        }
-        else if(blocks[i][j] == 1) {
-          // arduboy.drawBitmap(newX, newY, epd_bitmap_gem2, 12, 12, WHITE);
-          arduboy.drawBitmap(newX, newY, epd_bitmap_coin1_v3, 12, 12, WHITE);
-        }
-        else if(blocks[i][j] == 10) {
-          // arduboy.drawBitmap(newX, newY, epd_bitmap_gem1, 12, 12, WHITE);~
-          arduboy.drawBitmap(newX, newY, epd_bitmap_coin10_v3, 12, 12, WHITE);
-        }
-        else if(blocks[i][j] == 100) {
-          // arduboy.drawBitmap(newX, newY, epd_bitmap_gem4, 12, 12, WHITE);
-          arduboy.drawBitmap(newX, newY, epd_bitmap_coin100, 12, 12, WHITE);
-        }
-        else {
-          arduboy.drawBitmap(newX, newY, epd_bitmap_block2, 12, 12, WHITE);
-        }
-
-      }
     }
 
     arduboy.drawBitmap(digmanX, digmanY, epd_bitmap_digman, 12, 12, WHITE);
@@ -215,6 +179,70 @@ void drawGame() {
     displayTimer();
 
     arduboy.display();
+}
+
+void drawBlock(int x, int y, int blockType) {
+    switch (blockType) {
+        case -2:
+            arduboy.drawBitmap(x, y, epd_bitmap_spider, 12, 12, WHITE);
+            break;
+        case -1:
+            arduboy.drawRect(x, y, tileSize, tileSize, BLACK);
+            break;
+        case 5:
+            arduboy.drawBitmap(x, y, epd_bitmap_time, 12, 12, WHITE);
+            break;
+        case 6:
+            arduboy.drawBitmap(x, y, epd_bitmap_speed1, 12, 12, WHITE);
+            break;
+        case 1:
+            arduboy.drawBitmap(x, y, epd_bitmap_coin1_v3, 12, 12, WHITE);
+            break;
+        case 10:
+            arduboy.drawBitmap(x, y, epd_bitmap_coin10_v3, 12, 12, WHITE);
+            break;
+        case 100:
+            arduboy.drawBitmap(x, y, epd_bitmap_coin100, 12, 12, WHITE);
+            break;
+        default:
+            arduboy.drawBitmap(x, y, epd_bitmap_block2, 12, 12, WHITE);
+            break;
+    }
+}
+
+void handleDigmanCollision(int row, int col) {
+    int blockType = blocks[row][col];
+
+    // Handle different block types and their effects on 'digman'
+    switch (blockType) {
+        case 5: // If the block is a time power-up
+            gameDuration += 5000; // Add 5 seconds to the game duration
+            break;
+        case 6: // If the block is a speed boost power-up
+            startBoostTime = millis(); // Start the speed boost timer
+            break;
+        case -2: // If the block is a spider
+            gameState = GAME_OVER; // Game over due to collision with a spider
+            break;
+        case 0: // If the block is a regular block without any effect
+            // No specific effect on 'digman'
+            break;
+        case 1: // If the block is a type with some effect (example)
+            score += 1; // Increase the score by 1
+            break;
+        case 10: // Handle other block types with specific effects (example)
+            score += 10; // Increase the score by 10
+            break;
+        case 100: // Another block type with a different effect (example)
+            score += 100; // Increase the score by 100
+            break;
+        default:
+            // Handle any other block type not covered above
+            break;
+    }
+
+    blocks[row][col] = -1;
+    // Additional actions or updates related to the collision with 'digman'
 }
 
 void displayScore() {
@@ -266,30 +294,30 @@ void moveDigman(int deltaX) {
 }
 
 int getRandomValue() {
-  int randomValue = random(1, 101); // Generate a random number between 1 and 100
+    int randomValue = random(1, 101); // Generate a random number between 1 and 100
 
-  if (randomValue <= 1) {
-    //spider
-    return -2;
-  } else if (randomValue <= 2) {
-    //power up
-    int newRandomValue = random(1, 50); 
-    if(newRandomValue <= 25) {
-      //extra time
-      return 5;
+    // Prioritize generating specific block types
+    if (randomValue <= 1) {
+        return -2; // spider
+    } else if (randomValue <= 2) {
+        int newRandomValue = random(1, 50);
+
+        if (newRandomValue <= 25) {
+            return 5; // extra time
+        } else {
+            return 6; // speed boost
+        }
+    } else if (randomValue <= 75) {
+        return 0; // Regular block
+    } else if (randomValue <= 90) {
+        return 1; // Coin (low value)
+    } else if (randomValue <= 98) {
+        return 10; // Coin (medium value)
+    } else if (randomValue <= 99) {
+        return 100; // Coin (high value)
     } else {
-      //speed boost
-      return 6;
+        return -1; // default empty block
     }
-  } else if (randomValue <= 75) {
-    return 0; // Around 75% chance for a gem
-  } else if (randomValue <= 90) {
-    return 1; // Around 5% chance for a gem
-  } else if (randomValue <= 99) {
-    return 10; // Around 15% chance for a 10-point gem
-  } else {
-    return 100; // Around 5% chance for a 100-point gem (rarer)
-  }
 }
 
 void moveBlocksUp() {
