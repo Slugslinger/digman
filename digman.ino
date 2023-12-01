@@ -122,20 +122,27 @@ void loop() {
      case GAME_PLAY:
       // Game logic
       if (!gameOver) {
-
-        int row = (digmanY - blockY + tileSize) / tileSize;
-        int col = (digmanX - blockX) / tileSize;
-
-        Serial.println("X: " + String(row));
-        Serial.println("Y: " + String(col) );
-        // Access the block below the 'digman' in the 'blocks' array
-        int blockBelowDigman = blocks[row + 1][col];
-
-        Serial.println("Block below digman: " + String(blockBelowDigman));
         
-        if(blocks[row + 1][col] != 0) {
-          isFalling = true;
-          moveBlocksUp();
+        if (!isFalling) {
+            int levelBelowDigman = -1;
+            for (int i = 0; i < numLevels; i++) {
+                if (digmanY + tileSize == blockYLevels[i]) {
+                    levelBelowDigman = i;
+                    break;
+                }
+            }
+
+            if (levelBelowDigman != -1) {
+                int col = (digmanX - blockX) / tileSize; // Get the column of the digman
+
+                // Access the block below the 'digman' in the 'blocks' array
+                int blockBelowDigman = blocks[levelBelowDigman][col];
+                // Serial.println("Block below digman: " + String(blockBelowDigman));
+
+                if(blockBelowDigman != 0) {
+                  moveBlocksUp();
+                }
+            }
         }
 
         if (arduboy.pressed(LEFT_BUTTON)) {
@@ -301,7 +308,7 @@ void moveDigman(int deltaX) {
       canMove = currentTime - lastMoveTime >= moveDelay;
     }
 
-  if (canMove || isFalling) {
+  if (canMove) {
     int newX = digmanX + deltaX;
 
     if (isAtXBoundary(newX)) {
@@ -309,7 +316,6 @@ void moveDigman(int deltaX) {
     }
 
     lastMoveTime = currentTime;
-
     isFalling = false;
   }
 }
@@ -326,7 +332,7 @@ void moveBlocksUp() {
       canMove = currentTime - lastDownMoveTime >= downMoveDelay;
     }
 
-    if (canMove || isFalling) {
+    if (canMove) {
       for (int i = 0; i < numLevels; i++) {
         blockYLevels[i] -= tileSize; // Move blocks up by one tileSize
 
@@ -340,8 +346,8 @@ void moveBlocksUp() {
           }
       }
 
-      isFalling = false;
       lastDownMoveTime = currentTime;
+      isFalling = false;
     }
 
 }
@@ -376,14 +382,15 @@ void displayFinalScore() {
   arduboy.clear();
   arduboy.setCursor(35, 0); // Adjust position for the final score text
   arduboy.print("Game Over!");
-  arduboy.setCursor(10, 20); // Adjust position for the final score text
   // arduboy.print("Final Score:");
   if(isNewHighScore){
+      arduboy.setCursor(10, 20); // Adjust position for the final score text
       arduboy.print("New High Score: ");
       
       isNewHighScore = false;
     }
     else {
+      arduboy.setCursor(25, 20); // Adjust position for the final score text
       arduboy.print("Final Score:");
     }
   arduboy.setCursor(50, 30); // Adjust position for the final score value
