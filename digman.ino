@@ -1,8 +1,11 @@
 #include <Arduboy2.h>
+#include <ArduboyTones.h>
 #include <EEPROM.h>
 #include "bitmaps.h"
+#include "sounds.h"
 
 Arduboy2 arduboy;
+ArduboyTones sound(arduboy.audio.enabled);
 
 #define ARDBITMAP_SBUF arduboy.getBuffer()
 #include <ArdBitmap.h>
@@ -29,6 +32,7 @@ int score = 0;
 bool isNewHighScore = false;
 bool gameOver = false;
 bool isFalling = false;
+bool isThemePlaying = false;
 
 int totalBlockWidth = tileSize * numBlocks;
 int blockX = (screenWidth - totalBlockWidth) / 2;
@@ -49,8 +53,6 @@ GameState gameState = START_MENU;
 
 unsigned long lastMoveTime = 0; // Timestamp to track last movement
 const unsigned long moveDelay = 250; // Delay between movements (in milliseconds)
-unsigned long lastDownMoveTime = 0; // Timestamp to track last downward movement
-const unsigned long downMoveDelay = 250; // Delay between downward movements (in milliseconds)
 
 unsigned long boostMove = 150;
 const unsigned long boostTimer = 5000;
@@ -79,6 +81,10 @@ void displayStartMenu();
 bool isAtXBoundary(int x);
 void drawBlock(int x, int y, int blockType);
 void handleDigmanCollision(int row, int col);
+void playSound(const uint16_t *sound);
+void playThemeSong();
+void stopThemeSong();
+void playGameOverSound();
 
 void setup() {
     arduboy.begin();
@@ -122,6 +128,7 @@ void loop() {
      case GAME_PLAY:
       // Game logic
       if (!gameOver) {
+        // playThemeSong();
         
         if (!isFalling) {
             int levelBelowDigman = -1;
@@ -167,6 +174,7 @@ void loop() {
       break;
     
       case GAME_OVER:
+        // stopThemeSong();
         // Game over state
         updateHighScore(score);
         displayFinalScore();
@@ -243,24 +251,30 @@ void handleDigmanCollision(int row, int col) {
     // Handle different block types and their effects on 'digman'
     switch (blockType) {
         case 5: // If the block is a time power-up
+            playSound(powerUp1);
             gameDuration += 5000; // Add 5 seconds to the game duration
             break;
         case 6: // If the block is a speed boost power-up
+            playSound(powerUp2);
             startBoostTime = millis(); // Start the speed boost timer
             break;
         case -2: // If the block is a spider
+            playGameOverSound();
             gameState = GAME_OVER; // Game over due to collision with a spider
             break;
         case 0: // If the block is a regular block without any effect
             // No specific effect on 'digman'
             break;
         case 1: // If the block is a type with some effect (example)
+            playSound(coinValue1);
             score += 1; // Increase the score by 1
             break;
         case 10: // Handle other block types with specific effects (example)
+            playSound(coinValue10);
             score += 10; // Increase the score by 10
             break;
         case 100: // Another block type with a different effect (example)
+            playSound(coinValue100);
             score += 100; // Increase the score by 100
             break;
         default:
@@ -326,10 +340,10 @@ void moveBlocksUp() {
     bool canMove;
 
     if(isSpeedBoost()) {
-      canMove = currentTime - lastDownMoveTime >= boostMove;
+      canMove = currentTime - lastMoveTime >= boostMove;
     }
     else {
-      canMove = currentTime - lastDownMoveTime >= downMoveDelay;
+      canMove = currentTime - lastMoveTime >= moveDelay;
     }
 
     if (canMove) {
@@ -346,7 +360,7 @@ void moveBlocksUp() {
           }
       }
 
-      lastDownMoveTime = currentTime;
+      lastMoveTime = currentTime;
       isFalling = false;
     }
 
@@ -419,6 +433,32 @@ void resetGame() {
   // Add any additional reset logic here if needed
 
   gameState = GAME_PLAY;
+}
+
+void playSound(const uint16_t *soundToPlay) {
+  sound.tone(soundToPlay);
+  delay(200); // Adjust this delay to control the sound duration
+  sound.noTone(); // Stop the sound after the delay
+}
+
+void playGameOverSound() {
+  sound.tone(gameOverSound);
+  delay(500); // Adjust this delay to control the sound duration
+  sound.noTone(); // Stop the sound after the delay
+}
+
+void playThemeSong() {
+  if(!isThemePlaying) {
+    isThemePlaying = true;
+    sound.tone(themeSong);
+  }
+}
+
+void stopThemeSong() {
+  if(isThemePlaying){
+    isThemePlaying = false;
+    sound.noTone(); // Stop the sound after the delay
+  }
 }
 
 int getRandomValue() {
