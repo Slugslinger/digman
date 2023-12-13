@@ -34,6 +34,12 @@ bool gameOver = false;
 bool isFalling = false;
 bool isThemePlaying = false;
 
+bool isMute = false;
+unsigned long buttonPressStartTime = 0;
+bool isLongPress = false;
+const unsigned long longPressDuration = 1000; // Define the duration for a long press in milliseconds
+
+
 int totalBlockWidth = tileSize * numBlocks;
 int blockX = (screenWidth - totalBlockWidth) / 2;
 int totalBlockHeight = tileSize * (numLevels - 1);
@@ -122,6 +128,25 @@ void loop() {
         gameState = GAME_PLAY;
         resetGame(); // Reset the game when starting
       }
+
+      // Check for a long press on the B button to toggle mute
+      if (arduboy.pressed(B_BUTTON)) {
+        if (!isLongPress) {
+          buttonPressStartTime = millis(); // Record the start time of the button press
+          isLongPress = true;
+        } else {
+          unsigned long currentTime = millis();
+          if (currentTime - buttonPressStartTime >= longPressDuration) {
+            // Long press detected, toggle mute
+            isMute = !isMute;
+            isLongPress = false; // Reset long press flag
+          }
+        }
+      } else {
+        // If the B button is released before the long press duration, reset the long press flag
+        isLongPress = false;
+      }
+
       displayStartMenu();
       break;
 
@@ -219,7 +244,7 @@ void drawGame() {
 void drawBlock(int x, int y, int blockType) {
     switch (blockType) {
         case -2:
-            arduboy.drawBitmap(x, y, epd_bitmap_spider, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_spiderV2, 12, 12, WHITE);
             break;
         case -1:
             arduboy.drawRect(x, y, tileSize, tileSize, BLACK);
@@ -231,16 +256,18 @@ void drawBlock(int x, int y, int blockType) {
             arduboy.drawBitmap(x, y, epd_bitmap_speed1, 12, 12, WHITE);
             break;
         case 1:
-            arduboy.drawBitmap(x, y, epd_bitmap_coin1_v3, 12, 12, WHITE);
+            // arduboy.drawBitmap(x, y, epd_bitmap_coin1_v3, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_coin1__1_, 12, 12, WHITE);
             break;
         case 10:
-            arduboy.drawBitmap(x, y, epd_bitmap_coin10_v3, 12, 12, WHITE);
+            // arduboy.drawBitmap(x, y, epd_bitmap_coin10_v3, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_coin10__3_, 12, 12, WHITE);
             break;
         case 100:
             arduboy.drawBitmap(x, y, epd_bitmap_coin100, 12, 12, WHITE);
             break;
         default:
-            arduboy.drawBitmap(x, y, epd_bitmap_block2, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_block, 12, 12, WHITE);
             break;
     }
 }
@@ -370,13 +397,24 @@ void displayStartMenu() {
   arduboy.clear();
 
   // Display the start menu elements
-  arduboy.drawBitmap(0, 0, epd_bitmap_title, 128, 64, WHITE);
+  arduboy.drawBitmap(0, -5, epd_bitmap_title, 128, 64, WHITE);
+
+  // Display sound state icon in the top right corner
+  if (isMute) {
+    arduboy.drawBitmap(116, 0, epd_bitmap_mute, 12, 12, WHITE);
+  } else {
+    arduboy.drawBitmap(116, 0, epd_bitmap_sound, 12, 12, WHITE);
+  }
 
   // Display "Press A to start" message at the bottom
-  arduboy.setCursor(16, 35);
+  arduboy.setCursor(16, 30);
   arduboy.print("Press A to start");
 
-  displayHighScore(50);
+  // Display "Press B to mute" text
+  arduboy.setCursor(16, 40);
+  arduboy.print("Press B to mute");
+
+  displayHighScore(55);
 
   arduboy.display();
 }
@@ -436,19 +474,23 @@ void resetGame() {
 }
 
 void playSound(const uint16_t *soundToPlay) {
-  sound.tone(soundToPlay);
-  delay(200); // Adjust this delay to control the sound duration
-  sound.noTone(); // Stop the sound after the delay
+  if (!isMute) {
+    sound.tone(soundToPlay);
+    delay(200); // Adjust this delay to control the sound duration
+    sound.noTone(); // Stop the sound after the delay
+  }
 }
 
 void playGameOverSound() {
-  sound.tone(gameOverSound);
-  delay(500); // Adjust this delay to control the sound duration
-  sound.noTone(); // Stop the sound after the delay
+  if (!isMute) {
+    sound.tone(gameOverSound);
+    delay(500); // Adjust this delay to control the sound duration
+    sound.noTone(); // Stop the sound after the delay
+  }
 }
 
 void playThemeSong() {
-  if(!isThemePlaying) {
+  if (!isMute && !isThemePlaying) {
     isThemePlaying = true;
     sound.tone(themeSong);
   }
