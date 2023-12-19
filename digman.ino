@@ -96,8 +96,12 @@ void setup() {
     arduboy.begin();
     arduboy.setFrameRate(60);
 
-    // Load the high score from EEPROM
+    // Check if the high score is negative (potentially uninitialized)
     EEPROM.get(0, highScore);
+    if (highScore < 0) {
+        highScore = 0; // Set a default high score if uninitialized
+        EEPROM.put(0, highScore); // Write it back to EEPROM
+    }
 
     //Debug
     Serial.begin(9600); // Initialize serial communication at 9600 baud rate
@@ -447,8 +451,10 @@ void displayFinalScore() {
     }
   arduboy.setCursor(50, 30); // Adjust position for the final score value
   arduboy.print(score);
-  arduboy.setCursor(10, 50); // Adjust position for the instructions text
+  arduboy.setCursor(10, 40); // Adjust position for the instructions text
   arduboy.print("Press A to restart");
+  arduboy.setCursor(5, 50); // Additional line for returning to the menu
+  arduboy.print("Press B to go to menu");
 
   // displayHighScore();
   arduboy.display();
