@@ -70,6 +70,11 @@ unsigned long currentTime;
 unsigned long timeElapsed;
 unsigned long gameDuration = 0.5 * 60000; // Game duration in milliseconds
 
+// Declare variables to track button press duration and high score reset
+bool isUpPressed = false;
+bool isDownPressed = false;
+const unsigned long resetPressDuration = 2000; // 2 seconds in milliseconds
+
 // Function prototypes
 void setup();
 void loop();
@@ -128,6 +133,38 @@ void loop() {
 
   switch (gameState) {
     case START_MENU:
+            if (arduboy.pressed(UP_BUTTON)) {
+                if (!isUpPressed) {
+                    isUpPressed = true;
+                    buttonPressStartTime = millis();
+                } else {
+                    unsigned long currentTime = millis();
+                    if (currentTime - buttonPressStartTime >= resetPressDuration) {
+                        // Reset high score
+                        highScore = 0;
+                        EEPROM.put(0, highScore); // Update EEPROM
+                    }
+                }
+            } else {
+                isUpPressed = false;
+            }
+
+            if (arduboy.pressed(DOWN_BUTTON)) {
+                if (!isDownPressed) {
+                    isDownPressed = true;
+                    buttonPressStartTime = millis();
+                } else {
+                    unsigned long currentTime = millis();
+                    if (currentTime - buttonPressStartTime >= resetPressDuration) {
+                        // Reset high score
+                        highScore = 0;
+                        EEPROM.put(0, highScore); // Update EEPROM
+                    }
+                }
+            } else {
+                isDownPressed = false;
+            }
+
       if (arduboy.pressed(A_BUTTON)) {
         gameState = GAME_PLAY;
         resetGame(); // Reset the game when starting
@@ -211,6 +248,8 @@ void loop() {
 
         if (arduboy.pressed(A_BUTTON)) {
           resetGame();
+        } else if (arduboy.pressed(B_BUTTON)) {
+          gameState = START_MENU; // Go back to the start menu
         }
       break;
     }
@@ -453,8 +492,8 @@ void displayFinalScore() {
   arduboy.print(score);
   arduboy.setCursor(10, 40); // Adjust position for the instructions text
   arduboy.print("Press A to restart");
-  arduboy.setCursor(5, 50); // Additional line for returning to the menu
-  arduboy.print("Press B to go to menu");
+  arduboy.setCursor(10, 50); // Additional line for returning to the menu
+  arduboy.print("Press B to go back");
 
   // displayHighScore();
   arduboy.display();
