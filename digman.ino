@@ -1,8 +1,11 @@
 #include <Arduboy2.h>
+#include <ArduboyTones.h>
 #include <EEPROM.h>
 #include "bitmaps.h"
+#include "sounds.h"
 
 Arduboy2 arduboy;
+ArduboyTones sound(arduboy.audio.enabled);
 
 #define ARDBITMAP_SBUF arduboy.getBuffer()
 #include <ArdBitmap.h>
@@ -28,6 +31,14 @@ int highScore = 0;
 int score = 0;
 bool isNewHighScore = false;
 bool gameOver = false;
+bool isFalling = false;
+bool isThemePlaying = false;
+
+bool isMute = false;
+unsigned long buttonPressStartTime = 0;
+bool isLongPress = false;
+const unsigned long longPressDuration = 1000; // Define the duration for a long press in milliseconds
+
 
 int totalBlockWidth = tileSize * numBlocks;
 int blockX = (screenWidth - totalBlockWidth) / 2;
@@ -48,8 +59,6 @@ GameState gameState = START_MENU;
 
 unsigned long lastMoveTime = 0; // Timestamp to track last movement
 const unsigned long moveDelay = 250; // Delay between movements (in milliseconds)
-unsigned long lastDownMoveTime = 0; // Timestamp to track last downward movement
-const unsigned long downMoveDelay = 250; // Delay between downward movements (in milliseconds)
 
 unsigned long boostMove = 150;
 const unsigned long boostTimer = 5000;
@@ -60,6 +69,11 @@ unsigned long startTime;
 unsigned long currentTime;
 unsigned long timeElapsed;
 unsigned long gameDuration = 0.5 * 60000; // Game duration in milliseconds
+
+// Declare variables to track button press duration and high score reset
+bool isUpPressed = false;
+bool isDownPressed = false;
+const unsigned long resetPressDuration = 2000; // 2 seconds in milliseconds
 
 // Function prototypes
 void setup();
@@ -78,13 +92,21 @@ void displayStartMenu();
 bool isAtXBoundary(int x);
 void drawBlock(int x, int y, int blockType);
 void handleDigmanCollision(int row, int col);
+void playSound(const uint16_t *sound);
+void playThemeSong();
+void stopThemeSong();
+void playGameOverSound();
 
 void setup() {
     arduboy.begin();
     arduboy.setFrameRate(60);
 
-    // Load the high score from EEPROM
+    // Check if the high score is negative (potentially uninitialized)
     EEPROM.get(0, highScore);
+    if (highScore < 0) {
+        highScore = 0; // Set a default high score if uninitialized
+        EEPROM.put(0, highScore); // Write it back to EEPROM
+    }
 
     //Debug
     Serial.begin(9600); // Initialize serial communication at 9600 baud rate
@@ -111,16 +133,91 @@ void loop() {
 
   switch (gameState) {
     case START_MENU:
+            if (arduboy.pressed(UP_BUTTON)) {
+                if (!isUpPressed) {
+                    isUpPressed = true;
+                    buttonPressStartTime = millis();
+                } else {
+                    unsigned long currentTime = millis();
+                    if (currentTime - buttonPressStartTime >= resetPressDuration) {
+                        // Reset high score
+                        highScore = 0;
+                        EEPROM.put(0, highScore); // Update EEPROM
+                    }
+                }
+            } else {
+                isUpPressed = false;
+            }
+
+            if (arduboy.pressed(DOWN_BUTTON)) {
+                if (!isDownPressed) {
+                    isDownPressed = true;
+                    buttonPressStartTime = millis();
+                } else {
+                    unsigned long currentTime = millis();
+                    if (currentTime - buttonPressStartTime >= resetPressDuration) {
+                        // Reset high score
+                        highScore = 0;
+                        EEPROM.put(0, highScore); // Update EEPROM
+                    }
+                }
+            } else {
+                isDownPressed = false;
+            }
+
       if (arduboy.pressed(A_BUTTON)) {
         gameState = GAME_PLAY;
         resetGame(); // Reset the game when starting
       }
+
+      // Check for a long press on the B button to toggle mute
+      if (arduboy.pressed(B_BUTTON)) {
+        if (!isLongPress) {
+          buttonPressStartTime = millis(); // Record the start time of the button press
+          isLongPress = true;
+        } else {
+          unsigned long currentTime = millis();
+          if (currentTime - buttonPressStartTime >= longPressDuration) {
+            // Long press detected, toggle mute
+            isMute = !isMute;
+            isLongPress = false; // Reset long press flag
+          }
+        }
+      } else {
+        // If the B button is released before the long press duration, reset the long press flag
+        isLongPress = false;
+      }
+
       displayStartMenu();
       break;
 
      case GAME_PLAY:
       // Game logic
       if (!gameOver) {
+        // playThemeSong();
+        
+        if (!isFalling) {
+            int levelBelowDigman = -1;
+            for (int i = 0; i < numLevels; i++) {
+                if (digmanY + tileSize == blockYLevels[i]) {
+                    levelBelowDigman = i;
+                    break;
+                }
+            }
+
+            if (levelBelowDigman != -1) {
+                int col = (digmanX - blockX) / tileSize; // Get the column of the digman
+
+                // Access the block below the 'digman' in the 'blocks' array
+                int blockBelowDigman = blocks[levelBelowDigman][col];
+                // Serial.println("Block below digman: " + String(blockBelowDigman));
+
+                if(blockBelowDigman != 0) {
+                  moveBlocksUp();
+                }
+            }
+        }
+
         if (arduboy.pressed(LEFT_BUTTON)) {
           moveDigman(-tileSize);
         } else if (arduboy.pressed(RIGHT_BUTTON)) {
@@ -143,6 +240,7 @@ void loop() {
       break;
     
       case GAME_OVER:
+        // stopThemeSong();
         // Game over state
         updateHighScore(score);
         displayFinalScore();
@@ -150,34 +248,11 @@ void loop() {
 
         if (arduboy.pressed(A_BUTTON)) {
           resetGame();
+        } else if (arduboy.pressed(B_BUTTON)) {
+          gameState = START_MENU; // Go back to the start menu
         }
       break;
     }
-}
-
-void printMapState() {
-    Serial.println("Current Map State:");
-    for (int i = 0; i < numLevels; i++) {
-        Serial.print("blockYLevels[");
-        Serial.print(i);
-        Serial.print("]: ");
-        Serial.println(blockYLevels[i]);
-        
-        for (int j = 0; j < numBlocks; j++) {
-            int newY = blockYLevels[i];
-            int newX = blockX + j * tileSize;
-            
-            Serial.print("X: ");
-            Serial.print(newX);
-            Serial.print(", Y: ");
-            Serial.print(newY);
-            Serial.print(", Block: ");
-            Serial.print(blocks[i][j]);
-            Serial.print(" ");
-        }
-        Serial.println();
-    }
-    Serial.println();
 }
 
 void drawGame() {
@@ -212,7 +287,7 @@ void drawGame() {
 void drawBlock(int x, int y, int blockType) {
     switch (blockType) {
         case -2:
-            arduboy.drawBitmap(x, y, epd_bitmap_spider, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_spiderV2, 12, 12, WHITE);
             break;
         case -1:
             arduboy.drawRect(x, y, tileSize, tileSize, BLACK);
@@ -224,16 +299,18 @@ void drawBlock(int x, int y, int blockType) {
             arduboy.drawBitmap(x, y, epd_bitmap_speed1, 12, 12, WHITE);
             break;
         case 1:
-            arduboy.drawBitmap(x, y, epd_bitmap_coin1_v3, 12, 12, WHITE);
+            // arduboy.drawBitmap(x, y, epd_bitmap_coin1_v3, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_coin1__1_, 12, 12, WHITE);
             break;
         case 10:
-            arduboy.drawBitmap(x, y, epd_bitmap_coin10_v3, 12, 12, WHITE);
+            // arduboy.drawBitmap(x, y, epd_bitmap_coin10_v3, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_coin10__3_, 12, 12, WHITE);
             break;
         case 100:
             arduboy.drawBitmap(x, y, epd_bitmap_coin100, 12, 12, WHITE);
             break;
         default:
-            arduboy.drawBitmap(x, y, epd_bitmap_block2, 12, 12, WHITE);
+            arduboy.drawBitmap(x, y, epd_bitmap_block, 12, 12, WHITE);
             break;
     }
 }
@@ -244,24 +321,30 @@ void handleDigmanCollision(int row, int col) {
     // Handle different block types and their effects on 'digman'
     switch (blockType) {
         case 5: // If the block is a time power-up
+            playSound(powerUp1);
             gameDuration += 5000; // Add 5 seconds to the game duration
             break;
         case 6: // If the block is a speed boost power-up
+            playSound(powerUp2);
             startBoostTime = millis(); // Start the speed boost timer
             break;
         case -2: // If the block is a spider
+            playGameOverSound();
             gameState = GAME_OVER; // Game over due to collision with a spider
             break;
         case 0: // If the block is a regular block without any effect
             // No specific effect on 'digman'
             break;
         case 1: // If the block is a type with some effect (example)
+            playSound(coinValue1);
             score += 1; // Increase the score by 1
             break;
         case 10: // Handle other block types with specific effects (example)
+            playSound(coinValue10);
             score += 10; // Increase the score by 10
             break;
         case 100: // Another block type with a different effect (example)
+            playSound(coinValue100);
             score += 100; // Increase the score by 100
             break;
         default:
@@ -270,7 +353,6 @@ void handleDigmanCollision(int row, int col) {
     }
 
     blocks[row][col] = -1;
-    // Additional actions or updates related to the collision with 'digman'
 }
 
 void displayScore() {
@@ -318,6 +400,151 @@ void moveDigman(int deltaX) {
     }
 
     lastMoveTime = currentTime;
+    isFalling = false;
+  }
+}
+
+void moveBlocksUp() {
+    unsigned long currentTime = millis();
+    // In case we need to wait to move again
+    bool canMove;
+
+    if(isSpeedBoost()) {
+      canMove = currentTime - lastMoveTime >= boostMove;
+    }
+    else {
+      canMove = currentTime - lastMoveTime >= moveDelay;
+    }
+
+    if (canMove) {
+      for (int i = 0; i < numLevels; i++) {
+        blockYLevels[i] -= tileSize; // Move blocks up by one tileSize
+
+        // If a block goes beyond the top of the screen, move it back to the bottom
+        if (blockYLevels[i] < 0) {
+          blockYLevels[i] = screenHeight - tileSize;
+            // Set random values for blocks at each level
+            for (int j = 0; j < numBlocks; j++) {
+              blocks[i][j] = getRandomValue();
+            }
+          }
+      }
+
+      lastMoveTime = currentTime;
+      isFalling = false;
+    }
+
+}
+
+void displayStartMenu() {
+  arduboy.clear();
+
+  // Display the start menu elements
+  arduboy.drawBitmap(0, -5, epd_bitmap_title, 128, 64, WHITE);
+
+  // Display sound state icon in the top right corner
+  if (isMute) {
+    arduboy.drawBitmap(116, 0, epd_bitmap_mute, 12, 12, WHITE);
+  } else {
+    arduboy.drawBitmap(116, 0, epd_bitmap_sound, 12, 12, WHITE);
+  }
+
+  // Display "Press A to start" message at the bottom
+  arduboy.setCursor(16, 30);
+  arduboy.print("Press A to start");
+
+  // Display "Press B to mute" text
+  arduboy.setCursor(16, 40);
+  arduboy.print("Press B to mute");
+
+  displayHighScore(55);
+
+  arduboy.display();
+}
+
+void displayTimer() {
+  int timeDigits = 2; // Display timer in seconds (2 digits)
+  int secondsLeft = (gameDuration - timeElapsed) / 1000; // Convert milliseconds to seconds
+  
+  int timerX = 2; // Adjust this value for positioning the timer
+
+  arduboy.fillRect(timerX, 0, timeDigits * 6, 8, BLACK); // Black background for the timer
+  arduboy.setCursor(timerX, 2); // Adjust position for the timer text
+  arduboy.print(secondsLeft);
+}
+
+void displayFinalScore() {
+  arduboy.clear();
+  arduboy.setCursor(35, 0); // Adjust position for the final score text
+  arduboy.print("Game Over!");
+  // arduboy.print("Final Score:");
+  if(isNewHighScore){
+      arduboy.setCursor(10, 20); // Adjust position for the final score text
+      arduboy.print("New High Score: ");
+      
+      isNewHighScore = false;
+    }
+    else {
+      arduboy.setCursor(25, 20); // Adjust position for the final score text
+      arduboy.print("Final Score:");
+    }
+  arduboy.setCursor(50, 30); // Adjust position for the final score value
+  arduboy.print(score);
+  arduboy.setCursor(10, 40); // Adjust position for the instructions text
+  arduboy.print("Press A to restart");
+  arduboy.setCursor(10, 50); // Additional line for returning to the menu
+  arduboy.print("Press B to go back");
+
+  // displayHighScore();
+  arduboy.display();
+}
+
+void resetGame() {
+  // Re-initialize block Y positions and values
+  for (int i = 0; i < numLevels; i++) {
+    blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
+    for (int j = 0; j < numBlocks; j++) {
+      blocks[i][j] = getRandomValue();
+    }
+  }
+
+  // Reset all game variables to their initial values
+  gameOver = false;
+  score = 0;
+  startTime = millis();
+  gameDuration = 0.5 * 60000;
+  // Add any additional reset logic here if needed
+
+  gameState = GAME_PLAY;
+}
+
+void playSound(const uint16_t *soundToPlay) {
+  if (!isMute) {
+    sound.tone(soundToPlay);
+    delay(200); // Adjust this delay to control the sound duration
+    sound.noTone(); // Stop the sound after the delay
+  }
+}
+
+void playGameOverSound() {
+  if (!isMute) {
+    sound.tone(gameOverSound);
+    delay(500); // Adjust this delay to control the sound duration
+    sound.noTone(); // Stop the sound after the delay
+  }
+}
+
+void playThemeSong() {
+  if (!isMute && !isThemePlaying) {
+    isThemePlaying = true;
+    sound.tone(themeSong);
+  }
+}
+
+void stopThemeSong() {
+  if(isThemePlaying){
+    isThemePlaying = false;
+    sound.noTone(); // Stop the sound after the delay
   }
 }
 
@@ -348,104 +575,6 @@ int getRandomValue() {
     }
 }
 
-void moveBlocksUp() {
-    unsigned long currentTime = millis();
-    // In case we need to wait to move again
-    bool canMove;
-
-    if(isSpeedBoost()) {
-      canMove = currentTime - lastDownMoveTime >= boostMove;
-    }
-    else {
-      canMove = currentTime - lastDownMoveTime >= downMoveDelay;
-    }
-
-    if (canMove) {
-      for (int i = 0; i < numLevels; i++) {
-        blockYLevels[i] -= tileSize; // Move blocks up by one tileSize
-
-        // If a block goes beyond the top of the screen, move it back to the bottom
-        if (blockYLevels[i] < 0) {
-          blockYLevels[i] = screenHeight - tileSize;
-            // Set random values for blocks at each level
-            for (int j = 0; j < numBlocks; j++) {
-              blocks[i][j] = getRandomValue();
-            }
-          }
-      }
-
-      lastDownMoveTime = currentTime;
-    }
-}
-
-void displayStartMenu() {
-  arduboy.clear();
-
-  // Display the start menu elements
-  arduboy.drawBitmap(0, 0, epd_bitmap_title, 128, 64, WHITE);
-
-  // Display "Press A to start" message at the bottom
-  arduboy.setCursor(16, 35);
-  arduboy.print("Press A to start");
-
-  displayHighScore(50);
-
-  arduboy.display();
-}
-
-void displayTimer() {
-  int timeDigits = 2; // Display timer in seconds (2 digits)
-  int secondsLeft = (gameDuration - timeElapsed) / 1000; // Convert milliseconds to seconds
-  
-  int timerX = 2; // Adjust this value for positioning the timer
-
-  arduboy.fillRect(timerX, 0, timeDigits * 6, 8, BLACK); // Black background for the timer
-  arduboy.setCursor(timerX, 2); // Adjust position for the timer text
-  arduboy.print(secondsLeft);
-}
-
-void displayFinalScore() {
-  arduboy.clear();
-  arduboy.setCursor(35, 0); // Adjust position for the final score text
-  arduboy.print("Game Over!");
-  arduboy.setCursor(10, 20); // Adjust position for the final score text
-  // arduboy.print("Final Score:");
-  if(isNewHighScore){
-      arduboy.print("New High Score: ");
-      
-      isNewHighScore = false;
-    }
-    else {
-      arduboy.print("Final Score:");
-    }
-  arduboy.setCursor(50, 30); // Adjust position for the final score value
-  arduboy.print(score);
-  arduboy.setCursor(10, 50); // Adjust position for the instructions text
-  arduboy.print("Press A to restart");
-
-  // displayHighScore();
-  arduboy.display();
-}
-
-void resetGame() {
-  // Re-initialize block Y positions and values
-  for (int i = 0; i < numLevels; i++) {
-    blockYLevels[i] = tileSize * (startingLvl + i) + blockY;
-    for (int j = 0; j < numBlocks; j++) {
-      blocks[i][j] = getRandomValue();
-    }
-  }
-
-  // Reset all game variables to their initial values
-  gameOver = false;
-  score = 0;
-  startTime = millis();
-  gameDuration = 0.5 * 60000;
-  // Add any additional reset logic here if needed
-
-  gameState = GAME_PLAY;
-}
-
 bool isSpeedBoost() {
     long temp = millis();
 
@@ -473,4 +602,29 @@ void displayHighScore(int yPos = 10) {
       arduboy.setCursor(15, yPos); // Adjust position for the high score text
       arduboy.print("High Score: ");
     arduboy.print(highScore);
+}
+
+void printMapState() {
+    Serial.println("Current Map State:");
+    for (int i = 0; i < numLevels; i++) {
+        Serial.print("blockYLevels[");
+        Serial.print(i);
+        Serial.print("]: ");
+        Serial.println(blockYLevels[i]);
+        
+        for (int j = 0; j < numBlocks; j++) {
+            int newY = blockYLevels[i];
+            int newX = blockX + j * tileSize;
+            
+            Serial.print("X: ");
+            Serial.print(newX);
+            Serial.print(", Y: ");
+            Serial.print(newY);
+            Serial.print(", Block: ");
+            Serial.print(blocks[i][j]);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
+    Serial.println();
 }
