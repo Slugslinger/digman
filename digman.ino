@@ -71,8 +71,8 @@ unsigned long timeElapsed;
 unsigned long gameDuration = 0.5 * 60000; // Game duration in milliseconds
 
 // Declare variables to track button press duration and high score reset
-bool isUpPressed = false;
-bool isDownPressed = false;
+bool isLeftPressed = false;
+bool isRightPressed = false;
 const unsigned long resetPressDuration = 2000; // 2 seconds in milliseconds
 
 // Function prototypes
@@ -133,9 +133,9 @@ void loop() {
 
   switch (gameState) {
     case START_MENU:
-            if (arduboy.pressed(UP_BUTTON)) {
-                if (!isUpPressed) {
-                    isUpPressed = true;
+            if (arduboy.pressed(LEFT_BUTTON)) {
+                if (!isLeftPressed) {
+                    isLeftPressed = true;
                     buttonPressStartTime = millis();
                 } else {
                     unsigned long currentTime = millis();
@@ -146,12 +146,12 @@ void loop() {
                     }
                 }
             } else {
-                isUpPressed = false;
+                isLeftPressed = false;
             }
 
-            if (arduboy.pressed(DOWN_BUTTON)) {
-                if (!isDownPressed) {
-                    isDownPressed = true;
+            if (arduboy.pressed(RIGHT_BUTTON)) {
+                if (!isRightPressed) {
+                    isRightPressed = true;
                     buttonPressStartTime = millis();
                 } else {
                     unsigned long currentTime = millis();
@@ -162,7 +162,7 @@ void loop() {
                     }
                 }
             } else {
-                isDownPressed = false;
+                isRightPressed = false;
             }
 
       if (arduboy.pressed(A_BUTTON)) {
@@ -454,8 +454,8 @@ void displayStartMenu() {
   arduboy.print("Press A to start");
 
   // Display "Press B to mute" text
-  arduboy.setCursor(16, 40);
-  arduboy.print("Press B to mute");
+  arduboy.setCursor(23, 40);
+  arduboy.print("Hold B to mute");
 
   displayHighScore(55);
 
